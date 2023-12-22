@@ -23,6 +23,7 @@
 #include <memory>
 #include <functional>
 #include <utility>
+#include <fstream>
 
 /***********************************************************
 *                    MACROS/DEFINES                        *
@@ -37,6 +38,7 @@ namespace nage {
     struct Handler;
     class Generator;
     template<typename G> class PreparedGenerator;
+    class ListGenerator;
 
     extern Handler* g_Handler;
 
@@ -48,6 +50,7 @@ namespace nage {
         public:
             Generator();
             ~Generator() = default;
+            
             template<typename G> PreparedGenerator<G> Prepare();
             virtual std::string Generate() = 0;
         private:
@@ -58,6 +61,7 @@ namespace nage {
     class PreparedGenerator {
         public:
             PreparedGenerator(G* generator);
+
             PreparedGenerator Filter(std::function<bool(const std::string&)> pred);
             PreparedGenerator Edit(std::function<std::string(std::string)> mod);
             PreparedGenerator Generate(std::function<std::string(G*)> generate);
@@ -67,6 +71,21 @@ namespace nage {
             std::vector<std::function<bool(const std::string&)>> m_Filters;
             std::vector<std::function<std::string(std::string)>> m_Modifiers;
             std::function<std::string(G*)> m_Generate;
+    };
+
+    class ListGenerator : public Generator {
+        public:
+            ListGenerator();
+            ListGenerator(const std::vector<std::string>& tokens);
+            ListGenerator(const std::string& fileName);
+
+            virtual std::string Generate() override;
+
+            void Add(std::string token);
+            void AddFromList(const std::vector<std::string>& tokens);
+            void AddFromFile(const std::string& fileName);
+        private:
+            std::vector<std::string> m_Tokens;
     };
 
     /***********************************************************
@@ -183,5 +202,39 @@ namespace nage {
         return token;
     }
    
+    inline ListGenerator::ListGenerator() {    
+    }
+
+    inline ListGenerator::ListGenerator(const std::vector<std::string>& tokens) {
+        AddFromList(tokens);
+    }
+
+    inline ListGenerator::ListGenerator(const std::string& fileName) {
+        AddFromFile(fileName);
+    }
+
+    inline std::string ListGenerator::Generate() {
+        return m_Tokens.at(rand()%m_Tokens.size());
+    }
+
+    inline void ListGenerator::Add(std::string token) {
+        m_Tokens.push_back(token);
+    }
+
+    inline void ListGenerator::AddFromList(const std::vector<std::string>& tokens) {
+        //TODO: check for duplicates?
+        for(auto token : tokens)
+            m_Tokens.push_back(token);
+    }
+
+    inline void ListGenerator::AddFromFile(const std::string& fileName) {
+        std::ifstream file(fileName);
+        if(!file)
+            return;
+        std::string line;
+        while(getline(file, line))
+            m_Tokens.push_back(line);
+        file.close();
+    }
 }
 #endif

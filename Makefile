@@ -1,12 +1,16 @@
-CXXFLAGS = -Wall -pedantic -std=c++11 -g -Wno-sign-compare
-LINK.o = $(LINK.cc)
+CXX 	  := g++
+CXXFLAGS := -std=c++17 -Wall -Wno-format-security
+LDFLAGS   := -L/usr/lib -lstdc++ -lm -ldl -ltinfo
+SRC 	  := $(wildcard examples/*.cpp)
+TARGETS   := $(SRC:examples/%.cpp=%)
 
-PROGRAMS = main
+all: $(TARGETS) clean
 
-all: clean main test
+%: examples/%.cpp
+	@clear
+	@mkdir -p bin
+	$(CXX) $(CXXFLAGS) -o bin/$@ $< $(LDFLAGS)
+	./bin/$@
 
-clean: 
-	@rm -f *.o
-
-main: main.o generator.o
-test: test.o generator.o
+clean:
+	@rm -f bin/*

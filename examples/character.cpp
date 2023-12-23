@@ -23,6 +23,7 @@ public:
             case FEMALE:
                 return m_FemaleList->Generate();
         }
+        return "";
     }
     virtual std::string Generate() override {
         return Generate((Gender)(rand()%2));

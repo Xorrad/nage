@@ -19,11 +19,14 @@
 #include <stdint.h>
 #include <vector>
 #include <string>
+#include <iostream>
 #include <map>
 #include <memory>
 #include <functional>
 #include <utility>
 #include <fstream>
+#include <limits.h>
+#include <string.h>
 
 /***********************************************************
 *                    MACROS/DEFINES                        *
@@ -88,6 +91,21 @@ namespace nage {
             std::vector<std::string> m_Tokens;
     };
 
+    class MarkovChainGenerator : public Generator {
+        public: 
+            MarkovChainGenerator(int order);
+            MarkovChainGenerator(int order, const std::string& fileName);
+
+            virtual std::string Generate() override;
+            
+            void Load(const std::string& fileName);
+            void Save(const std::string& fileName);
+            void Compute(const std::string& fileName);
+        private:
+            std::map<std::string, std::map<std::string, double>> m_Probabilities;
+            int m_Order;
+    };
+
     /***********************************************************
     *                        HANDLER                           *
     ***********************************************************/
@@ -114,6 +132,17 @@ namespace nage {
     template<typename T> T& Get(uint32_t key);
     void Put(uint32_t key, std::unique_ptr<Generator> generator);
 
+    namespace string {
+        size_t CharLength(char ch);
+        size_t StrLength(const std::string& str);
+    }
+
+    namespace file {
+        template <typename T> T Read(std::ifstream& file);
+        template <typename T> T Read(std::ifstream& file, size_t length);
+        template <typename T> void Write(std::ofstream& file, const T& value);
+        template <typename T> void Write(std::ofstream& file, const T& value, size_t length);
+    }
    
    /***********************************************************
     *                   INLINE DEFINITIONS                     *
@@ -151,6 +180,72 @@ namespace nage {
 
     inline void Put(uint32_t key, std::unique_ptr<Generator> generator) {
         g_Handler->generators[key] = std::move(generator);
+    }
+
+    inline size_t string::CharLength(char ch) {
+        ch = ch >> 3;
+        if((ch >> 4) == 0b0)
+            return 1;
+        if((ch >> 2) == 0b110)
+            return 2;
+        if((ch >> 1) == 0b1110)
+            return 3;
+        if(ch == 0b11110)
+            return 4;
+        return 1;
+    }
+
+    inline size_t string::StrLength(const std::string& str) {
+        size_t len = 0;
+        for(size_t i = 0; i < str.length(); i += CharLength(str[i]))
+            len++;
+        return len;
+    }
+
+    template <typename T>
+    inline T file::Read(std::ifstream& file) {
+        return Read<T>(file, sizeof(T));
+    }
+    
+    template <typename T>
+    inline T file::Read(std::ifstream& file, size_t length) {
+        char* bytes = Read<char*>(file, sizeof(T));
+        T value;
+        memcpy((void*) &value, &bytes[0], sizeof(T));
+        delete[] bytes;
+        return value;
+    }
+    
+    template <>
+    inline char* file::Read<char*>(std::ifstream& file, size_t length) {
+        char* bytes = new char[length];
+        file.read(bytes, length);
+        return bytes;
+    }
+
+    template <>
+    inline std::string file::Read<std::string>(std::ifstream& file) {
+        size_t length = Read<uint16_t>(file);
+        char* bytes = Read<char*>(file, length);
+        std::string value = std::string(bytes, length);
+        delete[] bytes;
+        return value;
+    }
+    
+    template <typename T>
+    inline void file::Write(std::ofstream& file, const T& value) {
+        Write<T>(file, value, sizeof(T));
+    }
+
+    template <typename T>
+    inline void file::Write(std::ofstream& file, const T& value, size_t length) {
+        file.write((char*) &value, length);
+    }
+
+    template <>
+    inline void file::Write<std::string>(std::ofstream& file, const std::string& value) {
+        Write<uint16_t>(file, value.size());
+        file.write(value.data(), value.size());
     }
 
     /***********************************************************
@@ -236,5 +331,160 @@ namespace nage {
             m_Tokens.push_back(line);
         file.close();
     }
+    
+    inline MarkovChainGenerator::MarkovChainGenerator(int order) {
+        m_Order = order;
+    }
+
+    inline MarkovChainGenerator::MarkovChainGenerator(int order, const std::string& fileName) {
+        m_Order = order;
+    }
+
+    inline std::string MarkovChainGenerator::Generate() {
+        if(m_Probabilities.empty())
+            return  "";
+        
+        std::string token = "\002";
+        const int maxLength = 10;
+
+        for(int i = 0; i < maxLength; i++) {
+            double r = (double) rand() / (double) INT_MAX;
+            int start = std::min((int) token.length()-1, std::max(0, i+1 - m_Order));
+            int len = std::min((int) token.size() - start, m_Order);
+            std::string chunk = token.substr(start, len);
+
+            // printf("[%d] r=%f\trange=%d-%d\tchunk=%s\tentries=%d\n", i, r, start, (start + len-1), chunk.c_str(), m_Probabilities[chunk].size());
+
+            double j = 0;
+            for(auto [ch, p] : m_Probabilities[chunk]) {
+                // printf("%s -> %f\n", ch.c_str(), p);
+                if(j < r && r < j+p) {
+                    token += ch;
+                    break;
+                }
+                j += p;
+            }
+
+            if(token[token.size()-1] == '\003') {
+                break;
+            }
+        }
+
+        // Remove 'Start of Text' and 'End of Text' characters.
+        token.erase(0, 1);
+        token.pop_back();
+
+        return token;
+    }
+
+    inline void MarkovChainGenerator::Load(const std::string& fileName) {
+        std::ifstream file(fileName, std::ios::binary);
+        if(!file)
+            return;
+
+        // printf("loading probabilities from %s\n", fileName.c_str());
+
+        m_Probabilities.clear();
+        
+        size_t count = file::Read<size_t>(file);
+
+        // printf("count=%ld\n", count);
+
+        for(size_t i = 0; i < count; i++) {
+            std::string chunk = file::Read<std::string>(file);
+            size_t charactersCount = file::Read<size_t>(file);
+            // printf("[%ld] chunk=%s\tcharCount=%ld\n", i, chunk.c_str(), charactersCount);
+
+            m_Probabilities[chunk] = {};
+
+            for(size_t j = 0; j < charactersCount; j++) {
+                std::string ch = file::Read<std::string>(file);
+                double p = file::Read<double>(file);
+                m_Probabilities[chunk][ch] = p;
+            }
+        }
+
+        file.close();
+
+        // printf("finished loading probabilities\n");
+    }
+
+    inline void MarkovChainGenerator::Save(const std::string& fileName) {
+        std::ofstream file(fileName, std::ios::binary);
+        if(!file)
+            return;
+        
+        // printf("saving probabilities to %s\n", fileName.c_str());
+
+        file::Write<size_t>(file, m_Probabilities.size());
+
+        for(auto [chunk, characters] : m_Probabilities) {
+            file::Write<std::string>(file, chunk);
+            file::Write<size_t>(file, characters.size());
+            for(auto [ch, p] : characters) {
+                file::Write<std::string>(file, ch);
+                file::Write<double>(file, p);
+            }
+        }
+        
+        file.close();
+
+        // printf("finished saving to file\n");
+    }
+
+    inline void MarkovChainGenerator::Compute(const std::string& fileName) {
+        std::ifstream file(fileName);
+        if(!file)
+            return;
+        std::map<std::string, std::pair<int, std::map<std::string, int>>> occurrences;
+        std::string line;
+
+        // printf("started computation using file %s\n", fileName.c_str());
+
+        while(getline(file, line)) {
+
+            // Add 'Start of Text' and 'End of Text' characters.
+            line = "\002" + line + "\003";
+
+            // printf("processing: %s\n", line.c_str());
+
+            for(size_t i = 0; i < line.length();) {
+                size_t charLength = string::CharLength(line[i]);
+                std::string ch = line.substr(i, charLength);
+                std::string chunk = line.substr(i, charLength);
+
+                for(int j = 0; j < m_Order; j++) {
+                    if(i + chunk.length() >= line.length())
+                        break;
+                    size_t lastCharLength = string::CharLength(line[i + chunk.length()]);
+                    std::string lastChar = line.substr(i + chunk.length(), lastCharLength);
+
+                    // printf("[%d,%d] char=%s (%d)\tchunk=%s (%d)\n", i, j, lastChar.c_str(), lastCharLength, chunk.c_str(), chunk.length());
+
+                    if(occurrences.count(chunk) == 0)
+                        occurrences[chunk] = {0, {}};
+                    if(occurrences[chunk].second.count(lastChar) == 0)
+                        occurrences[chunk].second[lastChar] = 0;
+                    occurrences[chunk].second[lastChar]++;
+                    occurrences[chunk].first++;
+
+                    chunk += lastChar;
+                }
+                i += charLength;
+            }
+        }
+
+        for(auto [chunk, characters] : occurrences) {
+            for(auto [ch, count] : characters.second) {
+                double probability = (double) count / (double) characters.first;
+                m_Probabilities[chunk][ch] = probability;
+            }
+        }
+
+        file.close();
+
+        // printf("finished computation\n");
+    }
+
 }
 #endif

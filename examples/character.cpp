@@ -12,8 +12,8 @@ enum Gender {
 class CharacterNameGenerator : public nage::Generator {
 public:
     CharacterNameGenerator() {
-        m_MaleList = nage::Make<nage::ListGenerator>("list/french-names-male.txt");
-        m_FemaleList = nage::Make<nage::ListGenerator>("list/french-names-female.txt");
+        m_MaleList = nage::Make<nage::ListGenerator>("data/lists/french-names-male.txt");
+        m_FemaleList = nage::Make<nage::ListGenerator>("data/lists/french-names-female.txt");
     }
 
     std::string Generate(Gender gender/*, Culture culture*/) {

@@ -5,7 +5,7 @@ class CityNameGenerator : public nage::Generator {
 public:
     CityNameGenerator() {
         m_MarkovGenerator = nage::Make<nage::MarkovChainGenerator>(3);
-        m_MarkovGenerator->LoadCacheOrCompute("data/markov-cities.bin", "list/german-cities.txt");
+        m_MarkovGenerator->LoadCacheOrCompute("data/caches/markov-cities.bin", "data/lists/german-cities.txt");
     }
 
     virtual std::string Generate() override {

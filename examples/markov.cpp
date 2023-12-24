@@ -5,13 +5,7 @@ class CityNameGenerator : public nage::Generator {
 public:
     CityNameGenerator() {
         m_MarkovGenerator = nage::Make<nage::MarkovChainGenerator>(3);
-        if(std::filesystem::exists("data/markov-cities.bin")) {
-            m_MarkovGenerator->Load("data/markov-cities.bin");
-        }
-        else {
-            m_MarkovGenerator->Compute("list/german-cities.txt");
-            m_MarkovGenerator->Save("data/markov-cities.bin");
-        }
+        m_MarkovGenerator->LoadCacheOrCompute("data/markov-cities.bin", "list/german-cities.txt");
     }
 
     virtual std::string Generate() override {
@@ -24,10 +18,12 @@ private:
 int main() {
     srand(time(NULL));
 
+    // Initialize nage (create context, prepare handler)
     nage::Init();
 
     std::unique_ptr<CityNameGenerator> generator = nage::Make<CityNameGenerator>();
 
+    // Add filters and modifiers to a generator
     nage::PreparedGenerator<CityNameGenerator> prepared = generator->Prepare<CityNameGenerator>()
         .Filter([&](std::string name) {
             // return nage::string::StrLength(name) == 8;
@@ -41,6 +37,7 @@ int main() {
             return generator->Generate();
         });
     
+    // Generate a few names
     for(int i = 0; i < 10; i++)
         printf("%s\n", prepared.Get().c_str());
 

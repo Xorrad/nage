@@ -27,6 +27,7 @@
 #include <fstream>
 #include <limits.h>
 #include <string.h>
+#include <filesystem>
 
 /***********************************************************
 *                    MACROS/DEFINES                        *
@@ -42,6 +43,7 @@ namespace nage {
     class Generator;
     template<typename G> class PreparedGenerator;
     class ListGenerator;
+    class MarkovChainGenerator;
 
     extern Handler* g_Handler;
 
@@ -101,6 +103,7 @@ namespace nage {
             void Load(const std::string& fileName);
             void Save(const std::string& fileName);
             void Compute(const std::string& fileName);
+            void LoadCacheOrCompute(const std::string& cacheFileName, const std::string& fileName);
         private:
             std::map<std::string, std::map<std::string, double>> m_Probabilities;
             int m_Order;
@@ -308,6 +311,8 @@ namespace nage {
     }
 
     inline std::string ListGenerator::Generate() {
+        if(m_Tokens.empty())
+            return "";
         return m_Tokens.at(rand()%m_Tokens.size());
     }
 
@@ -488,6 +493,17 @@ namespace nage {
         file.close();
 
         // printf("finished computation\n");
+    }
+
+    inline void MarkovChainGenerator::LoadCacheOrCompute(const std::string& cacheFileName, const std::string& fileName) {
+        if(std::filesystem::exists(cacheFileName)) {
+            //TODO: check if source list was updated or cache file invalid.
+            Load(cacheFileName);
+        }
+        else {
+            Compute(fileName);
+            Save(cacheFileName);
+        }
     }
 
 }

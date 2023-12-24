@@ -42,11 +42,11 @@ int main() {
     // Add a generator to handler with id CHARACTER_NAME
     nage::Put(Generators::CHARACTER_NAME, nage::Make<CharacterNameGenerator>());
 
+    // Add filters and modifiers to a generator
     nage::PreparedGenerator<CharacterNameGenerator> prepared = nage::Get<CharacterNameGenerator>(Generators::CHARACTER_NAME)
         .Prepare<CharacterNameGenerator>()
         .Filter([&](const std::string& name){
             return name.size() < 10;
-            return true;
         })
         .Edit([&](std::string name) {
             name[0] = toupper(name[0]);

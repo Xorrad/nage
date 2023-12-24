@@ -44,6 +44,7 @@ namespace nage {
     template<typename G> class PreparedGenerator;
     class ListGenerator;
     class MarkovChainGenerator;
+    class TemplateGenerator;
 
     extern Handler* g_Handler;
 
@@ -107,6 +108,19 @@ namespace nage {
         private:
             std::map<std::string, std::map<std::string, double>> m_Probabilities;
             int m_Order;
+    };
+
+    class TemplateGenerator : public Generator {
+        public:
+            TemplateGenerator();
+            TemplateGenerator(const std::string& fileName);
+
+            std::string Generate(const std::string& expr);
+            virtual std::string Generate() override; 
+
+            void LoadTemplates(const std::string& fileName);
+        private:
+            std::map<std::string, std::vector<std::string>> m_Templates;
     };
 
     /***********************************************************
@@ -298,6 +312,10 @@ namespace nage {
 
         return token;
     }
+
+    /***********************************************************
+    *                     LIST GENERATOR                       *
+    ***********************************************************/
    
     inline ListGenerator::ListGenerator() {    
     }
@@ -335,6 +353,10 @@ namespace nage {
             m_Tokens.push_back(line);
         file.close();
     }
+
+    /***********************************************************
+    *                 MARKOV CHAIN GENERATOR                   *
+    ***********************************************************/
     
     inline MarkovChainGenerator::MarkovChainGenerator(int order) {
         m_Order = order;
@@ -504,6 +526,94 @@ namespace nage {
             Compute(fileName);
             Save(cacheFileName);
         }
+    }
+
+    /***********************************************************
+    *                   TEMPLATE GENERATOR                     *
+    ***********************************************************/
+
+    inline TemplateGenerator::TemplateGenerator() {
+    }
+    
+    inline TemplateGenerator::TemplateGenerator(const std::string& fileName) {
+        LoadTemplates(fileName);
+    }
+
+    inline std::string TemplateGenerator::Generate(const std::string& expr) {
+        std::string str = "";
+
+        for(size_t i = 0; i < expr.size(); i += string::CharLength(expr[i])) {
+            std::string e = expr.substr(i, string::CharLength(expr[i]));
+            if(m_Templates.count(e) == 0 || m_Templates[e].size() == 0) {
+                str += e;
+                continue;
+            }
+            str += m_Templates[e][rand() % m_Templates[e].size()];
+        }
+
+        return str;
+    }
+
+    inline std::string TemplateGenerator::Generate() {
+        return Generate("ss");
+    }
+
+    inline void TemplateGenerator::LoadTemplates(const std::string& fileName) {
+        m_Templates.clear();
+
+        std::ifstream file(fileName);
+        if(!file)
+            return;
+
+        enum Scope { KEY, VALUE };
+        std::string key;
+        Scope scope = Scope::KEY;
+
+        char c;
+        std::string str;
+
+        while(file.get(c)) {
+            // Get UTF-8 character by looping over following bytes.
+            std::string ch = std::string(1, c);
+            for(size_t i = 1; i < string::CharLength(c); i++) {
+                if(!file.get(c))
+                    goto End;
+                ch += c;
+            }
+            // Syntax: key=value1,value2,value3;
+            // The scope can be key or value.
+            // - Operations for Scope::KEY are concatenating the key (a,b,c...) or switching to values (=)
+            // - Operations for Scope::VALUE are concatenating the value (a,b,c...), switching to next value (,)
+            //   or switching to next key (;)
+            // the following characters are not allowed in keys or values: ',' ';' '\n' ' ' '\'' '-'
+            switch(scope) {
+                case Scope::KEY:
+                    if(ch == "=") {
+                        key = str;
+                        str = "";
+                        m_Templates[key] = {};
+                        scope = Scope::VALUE;
+                    }
+                    else if(ch != "," && ch != ";" && ch != "\n" && ch != " " && ch != "'" && ch != "-") {
+                        str += ch;
+                    }
+                    break;
+                case Scope::VALUE:
+                    if(ch == "," || ch == ";") {
+                        m_Templates[key].push_back(str);
+                        str = "";
+                        if(ch == ";")
+                            scope = Scope::KEY; 
+                    }
+                    else if(ch != "\n") {
+                        str += ch;
+                    }
+                    break;
+            }
+        }
+        
+        End:
+        file.close();
     }
 
 }

@@ -63,13 +63,13 @@ Give generators to the `Handler` to make them accessible anywhere in your code:
 ```cpp
 int generatorId = 0;
 nage::Put(generatorId, nage::Make<nage::ListGenerator>("list/french-names.txt"));
+std::string name = nage::Get<nage::ListGenerator>(generatorId)->Generate();
 ```
 
 ### PreparedGenerator for Advanced Name Generation
 Create a `nage::PreparedGenerator` to apply filters and modifiers to generated names:to add filters and modifiers on generated names:
 ```cpp
-nage::PreparedGenerator<nage::ListGenerator> prepared = nage::Get<nage::ListGenerator>(generatorId)
-    .Prepare<nage::ListGenerator>()
+nage::PreparedGenerator<nage::ListGenerator> prepared = myListGenerator->Prepare<nage::ListGenerator>()
     .Filter([&](const std::string& name){
         return name.size() == 10;
     })

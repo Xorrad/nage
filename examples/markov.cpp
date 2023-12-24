@@ -24,12 +24,15 @@ private:
 int main() {
     srand(time(NULL));
 
-    // Initialize nage (create context, prepare handler)
     nage::Init();
 
     std::unique_ptr<CityNameGenerator> generator = nage::Make<CityNameGenerator>();
 
     nage::PreparedGenerator<CityNameGenerator> prepared = generator->Prepare<CityNameGenerator>()
+        .Filter([&](std::string name) {
+            // return nage::string::StrLength(name) == 8;
+            return true;
+        })
         .Edit([&](std::string name) {
             name[0] = toupper(name[0]);
             return name;

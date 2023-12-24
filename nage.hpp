@@ -183,14 +183,13 @@ namespace nage {
     }
 
     inline size_t string::CharLength(char ch) {
-        ch = ch >> 3;
-        if((ch >> 4) == 0b0)
+        if((0b00000001 & (ch >> 7)) == 0b0)
             return 1;
-        if((ch >> 2) == 0b110)
+        if((0b00000111 & (ch >> 5)) == 0b110)
             return 2;
-        if((ch >> 1) == 0b1110)
+        if((0b00001111 & (ch >> 4)) == 0b1110)
             return 3;
-        if(ch == 0b11110)
+        if((0b00011111 & (ch >> 3)) == 0b11110)
             return 4;
         return 1;
     }
@@ -349,20 +348,25 @@ namespace nage {
 
         for(int i = 0; i < maxLength; i++) {
             double r = (double) rand() / (double) INT_MAX;
-            int start = std::min((int) token.length()-1, std::max(0, i+1 - m_Order));
-            int len = std::min((int) token.size() - start, m_Order);
-            std::string chunk = token.substr(start, len);
 
-            // printf("[%d] r=%f\trange=%d-%d\tchunk=%s\tentries=%d\n", i, r, start, (start + len-1), chunk.c_str(), m_Probabilities[chunk].size());
+            for(int k = m_Order; k > 1; k--) {
+                int start = std::min((int) token.length()-1, std::max(0, i+1 - k));
+                int len = std::min((int) token.size() - start, k);
+                std::string chunk = token.substr(start, len);
 
-            double j = 0;
-            for(auto [ch, p] : m_Probabilities[chunk]) {
-                // printf("%s -> %f\n", ch.c_str(), p);
-                if(j < r && r < j+p) {
-                    token += ch;
-                    break;
+                // printf("[%d] r=%f\trange=%d-%d\tchunk=%s\tentries=%d\n", i, r, start, (start + len-1), chunk.c_str(), m_Probabilities[chunk].size());
+
+                double j = 0;
+                for(auto [ch, p] : m_Probabilities[chunk]) {
+                    // printf("%s -> %f\n", ch.c_str(), p);
+                    if(j < r && r < j+p) {
+                        token += ch;
+                        break;
+                    }
+                    j += p;
                 }
-                j += p;
+                if(m_Probabilities[chunk].size() > 0)
+                    break;
             }
 
             if(token[token.size()-1] == '\003') {

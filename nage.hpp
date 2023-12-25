@@ -115,9 +115,10 @@ namespace nage {
             TemplateGenerator();
             TemplateGenerator(const std::string& fileName);
 
-            std::string Generate(const std::string& expr);
+            std::string Generate(std::string expr);
             virtual std::string Generate() override; 
 
+            std::string Evaluate(std::string& expr, bool isLiteral = false);
             void LoadTemplates(const std::string& fileName);
         private:
             std::map<std::string, std::vector<std::string>> m_Templates;
@@ -538,24 +539,57 @@ namespace nage {
     inline TemplateGenerator::TemplateGenerator(const std::string& fileName) {
         LoadTemplates(fileName);
     }
-
-    inline std::string TemplateGenerator::Generate(const std::string& expr) {
-        std::string str = "";
-
-        for(size_t i = 0; i < expr.size(); i += string::CharLength(expr[i])) {
-            std::string e = expr.substr(i, string::CharLength(expr[i]));
-            if(m_Templates.count(e) == 0 || m_Templates[e].size() == 0) {
-                str += e;
-                continue;
-            }
-            str += m_Templates[e][rand() % m_Templates[e].size()];
-        }
-
+        
+    inline std::string TemplateGenerator::Generate(std::string expr) {
+        std::string str = Evaluate(expr);
         return str;
     }
 
     inline std::string TemplateGenerator::Generate() {
-        return Generate("ss");
+        return "";
+    }
+
+    inline std::string TemplateGenerator::Evaluate(std::string& expr, bool isLiteral) {
+        std::vector<std::string> values = {""};
+        std::string str;
+
+        // We loop character by character (UTF-8) until the expression is empty.
+        // - If '(' then we call recursively.
+        // - If ')' then we pick a random value from the stack (values) and return it.
+        // - If '<' same thing but anything inside is a special symbol.
+        // - If '>' same thing
+        // - If '|' then we push a new value on the stack.
+        // - Otherwise, depending on isLiteral, we push the string or the value associated to the key.
+        while(!expr.empty()) {
+            std::string ch = expr.substr(0, string::CharLength(expr[0]));
+            expr.erase(0, ch.size());
+
+            if(ch == "(") {
+                str += Evaluate(expr, true);
+            }
+            else if(ch == "<") {
+                str += Evaluate(expr, false);
+            }
+            else {
+                if(ch == ")" || ch == ">") {
+                    break;
+                }
+                else if(ch == "|") {
+                    values[values.size()-1] += str;
+                    values.push_back("");
+                    str = "";
+                }
+                else if(isLiteral) {
+                    str += ch;
+                }
+                else {
+                    str += (m_Templates.count(ch) == 0 || m_Templates[ch].empty()) ? "" : m_Templates[ch][rand() % m_Templates[ch].size()];
+                }
+            }
+        }
+        values[values.size()-1] += str;
+
+        return (values.empty()) ? "" : values[rand()%values.size()];
     }
 
     inline void TemplateGenerator::LoadTemplates(const std::string& fileName) {

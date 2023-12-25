@@ -50,19 +50,22 @@ int main() {
 ### Predefined Generators   
 Initialize predefined generators as follows:
 ```cpp
-std::unique_ptr<nage::ListGenerator> myListGenerator = nage::Make<nage::ListGenerator>("list/french-names.txt");
+std::unique_ptr<nage::ListGenerator> myListGenerator = nage::Make<nage::ListGenerator>("data/lists/french-names.txt");
 std::string name1 = myListGenerator->Generate();
 
 std::unique_ptr<nage::MarkovChainGenerator> myMarkovGenerator = nage::Make<nage::MarkovChainGenerator>(3);
-myMarkovGenerator->LoadCacheOrCompute("data/markov-cities.bin", "list/german-cities.txt");
+myMarkovGenerator->LoadCacheOrCompute("data/caches/markov-cities.bin", "data/lists/german-cities.txt");
 std::string name2 = myMarkovGenerator->Generate();
+
+std::unique_ptr<nage::TemplateGenerator> generator = nage::Make<nage::TemplateGenerator>("data/templates/rinkworks.txt");
+std::string name3 = generator->Generate("sv(nia|lia|cia|sia)");
 ```
 
 ### Use Generators Anywhere in Your Code
 Give generators to the `Handler` to make them accessible anywhere in your code:
 ```cpp
 int generatorId = 0;
-nage::Put(generatorId, nage::Make<nage::ListGenerator>("list/french-names.txt"));
+nage::Put(generatorId, nage::Make<nage::ListGenerator>("data/lists/french-names.txt"));
 std::string name = nage::Get<nage::ListGenerator>(generatorId)->Generate();
 ```
 

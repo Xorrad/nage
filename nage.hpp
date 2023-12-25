@@ -200,6 +200,10 @@ namespace nage {
         g_Handler->generators[key] = std::move(generator);
     }
 
+    /***********************************************************
+    *                    STRING FUNCTIONS                      *
+    ***********************************************************/
+
     inline size_t string::CharLength(char ch) {
         if((0b00000001 & (ch >> 7)) == 0b0)
             return 1;
@@ -218,6 +222,10 @@ namespace nage {
             len++;
         return len;
     }
+
+    /***********************************************************
+    *                      FILE FUNCTIONS                      *
+    ***********************************************************/
 
     template <typename T>
     inline T file::Read(std::ifstream& file) {
@@ -375,6 +383,7 @@ namespace nage {
         const int maxLength = 10;
 
         for(int i = 0; i < maxLength; i++) {
+            // Pick a random value between 0 and 1.
             double r = (double) rand() / (double) INT_MAX;
 
             for(int k = m_Order; k > 1; k--) {
@@ -382,11 +391,10 @@ namespace nage {
                 int len = std::min((int) token.size() - start, k);
                 std::string chunk = token.substr(start, len);
 
-                // printf("[%d] r=%f\trange=%d-%d\tchunk=%s\tentries=%d\n", i, r, start, (start + len-1), chunk.c_str(), m_Probabilities[chunk].size());
-
+                // Determine which character has been picked.
+                // TODO: can be improved if r > 0.5 by looping in reverse.
                 double j = 0;
                 for(auto [ch, p] : m_Probabilities[chunk]) {
-                    // printf("%s -> %f\n", ch.c_str(), p);
                     if(j < r && r < j+p) {
                         token += ch;
                         break;
@@ -414,18 +422,13 @@ namespace nage {
         if(!file)
             return;
 
-        // printf("loading probabilities from %s\n", fileName.c_str());
-
         m_Probabilities.clear();
-        
-        size_t count = file::Read<size_t>(file);
 
-        // printf("count=%ld\n", count);
+        size_t count = file::Read<size_t>(file);
 
         for(size_t i = 0; i < count; i++) {
             std::string chunk = file::Read<std::string>(file);
             size_t charactersCount = file::Read<size_t>(file);
-            // printf("[%ld] chunk=%s\tcharCount=%ld\n", i, chunk.c_str(), charactersCount);
 
             m_Probabilities[chunk] = {};
 
@@ -437,16 +440,12 @@ namespace nage {
         }
 
         file.close();
-
-        // printf("finished loading probabilities\n");
     }
 
     inline void MarkovChainGenerator::Save(const std::string& fileName) {
         std::ofstream file(fileName, std::ios::binary);
         if(!file)
             return;
-        
-        // printf("saving probabilities to %s\n", fileName.c_str());
 
         file::Write<size_t>(file, m_Probabilities.size());
 
@@ -460,8 +459,6 @@ namespace nage {
         }
         
         file.close();
-
-        // printf("finished saving to file\n");
     }
 
     inline void MarkovChainGenerator::Compute(const std::string& fileName) {
@@ -471,14 +468,10 @@ namespace nage {
         std::map<std::string, std::pair<int, std::map<std::string, int>>> occurrences;
         std::string line;
 
-        // printf("started computation using file %s\n", fileName.c_str());
-
         while(getline(file, line)) {
 
             // Add 'Start of Text' and 'End of Text' characters.
             line = "\002" + line + "\003";
-
-            // printf("processing: %s\n", line.c_str());
 
             for(size_t i = 0; i < line.length();) {
                 size_t charLength = string::CharLength(line[i]);
@@ -490,8 +483,6 @@ namespace nage {
                         break;
                     size_t lastCharLength = string::CharLength(line[i + chunk.length()]);
                     std::string lastChar = line.substr(i + chunk.length(), lastCharLength);
-
-                    // printf("[%d,%d] char=%s (%d)\tchunk=%s (%d)\n", i, j, lastChar.c_str(), lastCharLength, chunk.c_str(), chunk.length());
 
                     if(occurrences.count(chunk) == 0)
                         occurrences[chunk] = {0, {}};
@@ -514,8 +505,6 @@ namespace nage {
         }
 
         file.close();
-
-        // printf("finished computation\n");
     }
 
     inline void MarkovChainGenerator::LoadCacheOrCompute(const std::string& cacheFileName, const std::string& fileName) {
@@ -570,21 +559,19 @@ namespace nage {
             else if(ch == "<") {
                 str += Evaluate(expr, false);
             }
+            else if(ch == ")" || ch == ">") {
+                break;
+            }
+            else if(ch == "|") {
+                values[values.size()-1] += str;
+                values.push_back("");
+                str = "";
+            }
+            else if(isLiteral) {
+                str += ch;
+            }
             else {
-                if(ch == ")" || ch == ">") {
-                    break;
-                }
-                else if(ch == "|") {
-                    values[values.size()-1] += str;
-                    values.push_back("");
-                    str = "";
-                }
-                else if(isLiteral) {
-                    str += ch;
-                }
-                else {
-                    str += (m_Templates.count(ch) == 0 || m_Templates[ch].empty()) ? "" : m_Templates[ch][rand() % m_Templates[ch].size()];
-                }
+                str += (m_Templates.count(ch) == 0 || m_Templates[ch].empty()) ? "" : m_Templates[ch][rand() % m_Templates[ch].size()];
             }
         }
         values[values.size()-1] += str;

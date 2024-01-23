@@ -28,7 +28,7 @@ My motivations behing making this project were to be able to generate a wide var
 - **Diversity:** Generate names for different cultures, genres, or themes.
 - **Randomness Control:** Fine-tune the level of randomness in generated names.
 - **Extensibility:** Easily extend the generator with custom modules and datasets.
-- **Header-Only:**: Add only one file to your project to start using *nage*.
+- **Header-Only:** Add only one file to your project to start using *nage*.
 
 ## Installation
 

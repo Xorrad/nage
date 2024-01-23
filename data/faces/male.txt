@@ -1,0 +1,12 @@
+id=STRUCT1;
+type=STRUCT;
+str=
+OxO
+xvx
+xox;
+
+id=HAIR1;
+type=HAIR;
+pos=0;
+str=
+@@@;
